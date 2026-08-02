@@ -120,7 +120,10 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 
 <div class="top">
   <h1>Eunice's Dashboard</h1>
-  <div class="date" id="date"></div>
+  <div style="text-align:right">
+    <div class="date" id="date"></div>
+    <div class="date" id="syncBadge" style="font-size:11px"></div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -246,9 +249,9 @@ dialog::backdrop{background:rgba(0,0,0,.35)}
 const KEY="eunice_cc_v1";
 
 /* ===== Optional cloud sync (Supabase). Leave blank for local-only. ===== */
-const SUPABASE_URL="";            // ← paste your Project URL
-const SUPABASE_KEY="";            // ← paste your anon public key
-const SYNC_ID="eunice-dashboard"; // keep the SAME on every device to share data
+const SUPABASE_URL="https://gvwtkjaukygpjmeyqcqc.supabase.co";      // your Project URL
+const SUPABASE_KEY="sb_publishable_W0re2q3vdQPyD6AbIIJN9A_AemN_uCR"; // your publishable key
+const SYNC_ID="eunice-7f3k9-home"; // keep the SAME on every device to share data
 let sb=null,syncTimer=null;
 const DAYS=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const uid=()=>Math.random().toString(36).slice(2,9);
@@ -312,9 +315,10 @@ let S=load();
 function load(){try{const v=localStorage.getItem(KEY);return v?JSON.parse(v):structuredClone(DEFAULT);}catch(e){return structuredClone(DEFAULT);}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}
   if(sb){clearTimeout(syncTimer);syncTimer=setTimeout(pushRemote,800);}}
-function loadSupabase(){return new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";s.onload=()=>{try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);res();}catch(e){rej(e);}};s.onerror=rej;document.head.appendChild(s);});}
-async function pullRemote(){try{const{data,error}=await sb.from("dashboard_state").select("data").eq("id",SYNC_ID).maybeSingle();if(error){console.warn(error);return;}if(data&&data.data){S=data.data;}else{await pushRemote();}}catch(e){console.warn(e);}}
-async function pushRemote(){if(!sb)return;try{await sb.from("dashboard_state").upsert({id:SYNC_ID,data:S,updated_at:new Date().toISOString()});}catch(e){console.warn(e);}}
+function setSync(t,cls){const el=document.getElementById("syncBadge");if(el){el.textContent=t;el.style.color=cls==="err"?"#e5484d":cls==="ok"?"#1f8a4c":"#6b7280";}}
+function loadSupabase(){return new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";s.onload=()=>{try{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);res();}catch(e){rej(e);}};s.onerror=()=>rej(new Error("couldn't load the Supabase library"));document.head.appendChild(s);});}
+async function pullRemote(){try{const{data,error}=await sb.from("dashboard_state").select("data").eq("id",SYNC_ID).maybeSingle();if(error){setSync("Cloud error: "+error.message,"err");return;}if(data&&data.data){S=data.data;setSync("Cloud: synced ✓","ok");}else{await pushRemote();}}catch(e){setSync("Cloud error: "+(e&&e.message||e),"err");}}
+async function pushRemote(){if(!sb)return;try{const{error}=await sb.from("dashboard_state").upsert({id:SYNC_ID,data:S,updated_at:new Date().toISOString()});if(error){setSync("Cloud error: "+error.message,"err");}else{setSync("Cloud: synced ✓","ok");}}catch(e){setSync("Cloud error: "+(e&&e.message||e),"err");}}
 function keyToDate(k){const p=(k||"").split("-").map(Number);return new Date(p[0],p[1]-1,p[2]);}
 function carryForward(){
   const tk=dkey();if(!S.daily)S.daily={};
@@ -635,7 +639,7 @@ document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
 function renderTLText(){const el=document.getElementById("tlText");if(el)el.value=S.timelineText||"";}
 function renderAll(){renderHero();renderCalendar();renderTasks();renderWeek();renderBlocks();renderTLText();renderHubs();renderProjects();renderMilestones();}
 async function boot(){
-  if(SUPABASE_URL&&SUPABASE_KEY){try{await loadSupabase();await pullRemote();}catch(e){console.warn("Cloud sync off:",e);}}
+  if(SUPABASE_URL&&SUPABASE_KEY){setSync("Cloud: connecting…");try{await loadSupabase();await pullRemote();}catch(e){setSync("Cloud error: "+(e&&e.message||e),"err");}}
   carryForward();save();renderAll();
 }
 boot();
